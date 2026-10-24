@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lockbyte | Cyber Awareness Terminal</title>
+<meta name="description" content="Lockbyte: test your password strength, take a cyber awareness quiz and learn how to stay safe online. Runs privately in your browser.">
+<meta name="theme-color" content="#000a04">
+<style>
+  :root {
+    --bg: #000a04;
+    --panel: rgba(0, 14, 6, .88);
+    --line: #0e5a2b;
+    --green: #00ff41;
+    --txt: #c9ffd9;
+    --muted: #6fbf8a;
+    --cyan: #00e5ff;
+    --red: #ff3b3b;
+    --amber: #ff9f1c;
+    --yellow: #ffe14d;
+    --lime: #7dff5a;
+    --mono: "Consolas", "Lucida Console", "Courier New", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  [hidden] { display: none !important; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg); color: var(--txt);
+    font-family: var(--mono); font-size: 16px; line-height: 1.5;
+    min-height: 100vh; overflow-x: hidden;
+  }
+  #rain { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; opacity: .28; pointer-events: none; }
+  body::after {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 3;
+    background: repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0, rgba(0,0,0,0) 2px, rgba(0,0,0,.12) 3px);
+  }
+  .app { position: relative; z-index: 2; max-width: 860px; margin: 0 auto; padding: 16px 16px 40px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  h1:focus, h2:focus { outline: none; }
+  :focus-visible { outline: 2px dashed var(--cyan); outline-offset: 3px; }
+
+  /* top bar */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    padding: 10px 14px; margin-bottom: 18px;
+    border: 1px solid var(--line); background: var(--panel); border-radius: 6px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: 3px; color: var(--green); }
+  .brand svg { width: 30px; height: 30px; }
+  .steps { display: flex; gap: 6px; flex-wrap: wrap; }
+  .step {
+    background: transparent; border: 1px solid var(--line); color: var(--muted);
+    padding: 6px 12px; border-radius: 4px; font: inherit; font-size: .82rem;
+    cursor: pointer; letter-spacing: 1px; text-transform: uppercase;
+  }
+  .step:hover { border-color: var(--green); color: var(--green); }
+  .step[aria-current="step"] { background: var(--green); color: #00140a; border-color: var(--green); font-weight: 700; }
+  .step.done::after { content: " \2713"; }
+
+  /* terminal window panel */
+  .win { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 0 22px rgba(0,255,65,.10); margin-bottom: 18px; overflow: hidden; }
+  .win-bar { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: rgba(0,255,65,.05); font-size: .78rem; color: var(--muted); }
+  .win-bar i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .win-bar i:nth-child(1) { background: #ff5f56; }
+  .win-bar i:nth-child(2) { background: #ffbd2e; }
+  .win-bar i:nth-child(3) { background: #27c93f; }
+  .win-bar span { margin-left: 8px; }
+  .win-body { padding: 22px; }
+  .title { color: var(--green); font-size: 1.3rem; letter-spacing: 1px; margin-bottom: 6px; text-shadow: 0 0 10px rgba(0,255,65,.45); }
+  .title::before { content: "> "; color: var(--cyan); }
+  .sub { color: var(--muted); font-size: .92rem; margin-bottom: 14px; }
+  .ps { color: var(--cyan); }
+  .note { font-size: .85rem; color: var(--muted); border: 1px dashed var(--line); padding: 10px 12px; border-radius: 4px; margin-bottom: 18px; }
+  .note b { color: var(--green); }
+
+  /* buttons */
+  .btn {
+    font: inherit; font-size: .9rem; letter-spacing: 1.5px; text-transform: uppercase;
+    padding: 11px 18px; border: 1px solid var(--green); background: transparent; color: var(--green);
+    border-radius: 4px; cursor: pointer; transition: background .15s, color .15s, box-shadow .15s;
+  }
+  .btn:hover { background: var(--green); color: #00140a; box-shadow: 0 0 16px rgba(0,255,65,.5); }
+  .btn.primary { background: var(--green); color: #00140a; font-weight: 700; }
+  .btn.primary:hover { filter: brightness(1.1); box-shadow: 0 0 22px rgba(0,255,65,.8); }
+  .btn.ghost { border-color: var(--line); color: var(--muted); }
+  .btn.ghost:hover { border-color: var(--green); background: transparent; color: var(--green); box-shadow: none; }
+  .btn.small { padding: 6px 12px; font-size: .78rem; }
+  .nav-row { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+
+  /* inputs */
+  .term-input {
+    display: flex; align-items: center; gap: 8px;
+    border: 1px solid var(--line); background: #000; border-radius: 4px; padding: 0 10px 0 12px;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  .term-input:focus-within { border-color: var(--green); box-shadow: 0 0 14px rgba(0,255,65,.35); }
+  .term-input input {
+    flex: 1; min-width: 0; background: transparent; border: 0; outline: none;
+    color: var(--green); font: inherit; font-size: 1.1rem; padding: 13px 0; caret-color: var(--green);
+  }
+  ::placeholder { color: #4f9a6a; }
+  .lbl { display: block; font-weight: 700; margin-bottom: 10px; color: var(--txt); }
+  .err { color: var(--red); font-size: .9rem; min-height: 1.3em; margin: 8px 0; }
+
+  /* login hero */
+  .hero { text-align: center; padding: 6px 0 4px; }
+  .hero-logo {
+    width: 150px; height: 150px; margin: 0 auto 8px; color: var(--green);
+    animation: float 4s ease-in-out infinite, pulse 2.5s ease-in-out infinite;
+  }
+  .glitch {
+    position: relative; display: inline-block;
+    font-size: clamp(2.2rem, 9vw, 3.6rem); font-weight: 800; letter-spacing: 4px;
+    color: var(--green); text-shadow: 0 0 14px rgba(0,255,65,.6);
+  }
+  .glitch.small { font-size: clamp(1.6rem, 6.5vw, 2.4rem); }
+  .glitch::before, .glitch::after {
+    content: attr(data-text); position: absolute; left: 0; top: 0; width: 100%; overflow: hidden; opacity: 0;
+  }
+  .glitch::before { color: var(--cyan); clip-path: inset(0 0 55% 0); animation: gl1 3s infinite steps(1); }
+  .glitch::after { color: var(--red); clip-path: inset(55% 0 0 0); animation: gl2 3.7s infinite steps(1); }
+  @keyframes gl1 { 0%,90%,100% { opacity: 0; } 92% { opacity: .9; transform: translate(-4px,1px); } 96% { opacity: .9; transform: translate(3px,-1px); } }
+  @keyframes gl2 { 0%,86%,100% { opacity: 0; } 88% { opacity: .9; transform: translate(4px,-1px); } 94% { opacity: .9; transform: translate(-3px,1px); } }
+  @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+  @keyframes pulse { 0%,100% { filter: drop-shadow(0 0 8px rgba(0,255,65,.5)); } 50% { filter: drop-shadow(0 0 20px rgba(0,255,65,.95)); } }
+  .tagline { min-height: 1.6em; margin: 8px 0 20px; color: var(--muted); font-size: 1rem; }
+  .caret { display: inline-block; width: 9px; height: 1.05em; background: var(--green); vertical-align: text-bottom; margin-left: 3px; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .term-form { max-width: 460px; margin: 0 auto; text-align: left; }
+  .term-form .btn { width: 100%; margin-top: 4px; }
+  .boot { max-width: 460px; margin: 18px auto 0; text-align: left; background: #000; border: 1px solid var(--line); padding: 14px; border-radius: 4px; font-size: .9rem; min-height: 150px; }
+  .bl { color: var(--muted); word-break: break-word; }
+  .bl.ok { color: var(--green); font-weight: 700; text-shadow: 0 0 10px rgba(0,255,65,.7); }
+  .bar { height: 6px; background: #031a0b; border-radius: 3px; margin-top: 12px; overflow: hidden; }
+  #bootbar { height: 100%; width: 0; background: var(--green); transition: width .4s; }
+  .icon-row { list-style: none; display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 26px; }
+  .icon-row li { text-align: center; font-size: .72rem; letter-spacing: 1px; color: var(--muted); text-transform: uppercase; }
+  .icon-row svg { width: 44px; height: 44px; color: var(--green); display: block; margin: 0 auto 6px; filter: drop-shadow(0 0 6px rgba(0,255,65,.55)); }
+  .disclaimer { text-align: center; font-size: .78rem; color: var(--muted); margin-top: 18px; }
+
+  /* scanner */
+  .meter { height: 14px; background: #031a0b; border: 1px solid var(--line); border-radius: 999px; margin-top: 18px; overflow: hidden; }
+  .meter-fill { height: 100%; width: 0; background: var(--green); border-radius: 999px; transition: width .35s ease, background .35s ease; box-shadow: 0 0 12px currentColor; }
+  .meter-info { display: flex; justify-content: space-between; margin-top: 10px; gap: 10px; flex-wrap: wrap; }
+  #verdict { font-weight: 800; font-size: 1.05rem; text-transform: uppercase; letter-spacing: 1px; }
+  #score { color: var(--muted); }
+  #hackline { color: var(--txt); font-size: .92rem; margin-top: 6px; }
+  #hackline::before { content: "$ "; color: var(--cyan); }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 18px; }
+  .stat { background: #000; border: 1px solid var(--line); border-radius: 4px; padding: 14px; text-align: center; }
+  .stat .v { font-size: 1.1rem; font-weight: 700; color: var(--green); word-break: break-word; }
+  .stat .k { font-size: .72rem; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 1px; }
+  .fine { font-size: .75rem; color: var(--muted); margin-top: 12px; }
+  .warn { background: rgba(255,59,59,.08); border-left: 4px solid var(--red); padding: 10px 14px; border-radius: 4px; font-size: .9rem; margin-top: 8px; }
+  #warnings { margin-top: 14px; }
+  ul.checks { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+  ul.checks li { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: .94rem; transition: color .2s; }
+  ul.checks .dot { width: 20px; height: 20px; border-radius: 3px; border: 2px solid var(--line); display: grid; place-items: center; font-size: .72rem; color: transparent; flex-shrink: 0; }
+  ul.checks li.ok { color: var(--txt); }
+  ul.checks li.ok .dot { background: var(--green); border-color: var(--green); color: #00140a; font-weight: 700; }
+  ul.tips { list-style: none; }
+  ul.tips li { padding: 10px 0 10px 28px; position: relative; border-bottom: 1px dashed var(--line); font-size: .94rem; }
+  ul.tips li:last-child { border-bottom: none; }
+  ul.tips li::before { content: ">"; position: absolute; left: 0; color: var(--cyan); font-weight: 700; }
+  h3.sec { color: var(--green); font-size: 1.05rem; margin-bottom: 14px; letter-spacing: 1px; }
+
+  /* quiz */
+  .quiz-progress { color: var(--muted); font-size: .85rem; margin-bottom: 8px; letter-spacing: 1px; }
+  .quiz-q { font-weight: 700; font-size: 1.08rem; margin-bottom: 14px; line-height: 1.45; }
+  .quiz-opt {
+    display: block; width: 100%; text-align: left; background: #000; color: var(--txt);
+    border: 1px solid var(--line); border-radius: 4px; padding: 12px 14px; margin-bottom: 10px;
+    font: inherit; font-size: .95rem; cursor: pointer; transition: border-color .2s, background .2s;
+  }
+  .quiz-opt:hover:not(:disabled) { border-color: var(--green); background: rgba(0,255,65,.06); }
+  .quiz-opt:disabled { cursor: default; color: var(--txt); }
+  .quiz-opt.correct { border-color: var(--green); background: rgba(0,255,65,.14); }
+  .quiz-opt.correct::before { content: "\2713  "; color: var(--green); font-weight: 700; }
+  .quiz-opt.wrong { border-color: var(--red); background: rgba(255,59,59,.12); }
+  .quiz-opt.wrong::before { content: "\2717  "; color: var(--red); font-weight: 700; }
+  .quiz-fb { margin-top: 6px; padding: 12px 14px; border-left: 4px solid var(--cyan); background: rgba(0,229,255,.07); font-size: .92rem; line-height: 1.5; }
+  .quiz-btn { margin-top: 14px; }
+  .quiz-result { text-align: center; padding: 10px 0; }
+  .quiz-result .big { font-size: 2.6rem; font-weight: 800; color: var(--green); text-shadow: 0 0 14px rgba(0,255,65,.6); }
+  .quiz-result .rank { color: var(--cyan); letter-spacing: 2px; font-weight: 700; margin-top: 4px; }
+  .quiz-result p { color: var(--muted); margin-top: 8px; }
+
+  /* feedback */
+  fieldset { border: none; margin-bottom: 22px; min-width: 0; }
+  legend { font-weight: 700; margin-bottom: 10px; color: var(--txt); }
+  .stars { display: inline-flex; flex-direction: row-reverse; gap: 6px; position: relative; }
+  .stars input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .stars label { font-size: 2.6rem; line-height: 1; cursor: pointer; color: #0f4a25; transition: color .15s, transform .15s; }
+  .stars label:hover, .stars label:hover ~ label, .stars input:checked ~ label { color: var(--green); text-shadow: 0 0 12px rgba(0,255,65,.7); }
+  .stars label:hover { transform: scale(1.15); }
+  .stars input:focus-visible + label { outline: 2px dashed var(--cyan); outline-offset: 2px; }
+  #rate-text { display: block; margin-top: 8px; color: var(--cyan); font-size: .92rem; min-height: 1.4em; }
+  .chips { display: flex; flex-wrap: wrap; gap: 10px; }
+  .chip { position: relative; }
+  .chip input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .chip span { display: inline-block; padding: 8px 12px; border: 1px solid var(--line); border-radius: 4px; cursor: pointer; font-size: .88rem; color: var(--muted); transition: all .15s; }
+  .chip span:hover { border-color: var(--green); color: var(--green); }
+  .chip input:checked + span { background: var(--green); color: #00140a; border-color: var(--green); font-weight: 700; }
+  .chip input:checked + span::before { content: "\2713 "; }
+  .chip input:focus-visible + span { outline: 2px dashed var(--cyan); outline-offset: 2px; }
+  textarea {
+    width: 100%; min-height: 96px; resize: vertical; background: #000; color: var(--green);
+    border: 1px solid var(--line); border-radius: 4px; padding: 12px; font: inherit; font-size: .98rem; caret-color: var(--green);
+  }
+  textarea:focus { outline: none; border-color: var(--green); box-shadow: 0 0 14px rgba(0,255,65,.35); }
+  .count { text-align: right; font-size: .75rem; color: var(--muted); margin-top: 4px; }
+
+  /* thank you */
+  .thanks { text-align: center; }
+  .seal { width: 130px; height: 130px; margin: 0 auto 10px; color: var(--green); filter: drop-shadow(0 0 14px rgba(0,255,65,.8)); display: block; }
+  .seal path { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw 1.1s ease forwards; }
+  .seal .seal-check { animation-delay: .9s; }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+  .thanks-line { font-size: 1.3rem; margin: 12px 0 6px; }
+  .thanks-line span { color: var(--green); font-weight: 800; word-break: break-word; }
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 20px 0; }
+  .tile { border: 1px solid var(--line); background: #000; padding: 14px; text-align: center; border-radius: 4px; }
+  .tile .v { color: var(--green); font-size: 1.15rem; font-weight: 700; word-break: break-word; }
+  .tile .k { font-size: .72rem; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-top: 4px; }
+  .learned { font-size: .88rem; color: var(--muted); margin-bottom: 16px; }
+  .takeaways { text-align: left; max-width: 520px; margin: 0 auto 18px; }
+  .quote { color: var(--cyan); letter-spacing: 3px; text-transform: uppercase; font-size: .9rem; margin: 14px 0 4px; }
+  .thanks .icon-row { max-width: 420px; margin: 14px auto 22px; }
+
+  footer { text-align: center; color: var(--muted); font-size: .78rem; margin-top: 10px; }
+
+  @media (max-width: 560px) {
+    .win-body { padding: 16px; }
+    ul.checks, .stats, .tiles { grid-template-columns: 1fr; }
+    .icon-row { grid-template-columns: repeat(2, 1fr); }
+    .hero-logo { width: 120px; height: 120px; }
+    .steps { width: 100%; }
+    .step { flex: 1; text-align: center; padding: 8px 4px; }
+    .stars label { font-size: 2.2rem; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+    .seal path { stroke-dashoffset: 0 !important; }
+    html { scroll-behavior: auto; }
+  }
+</style>
+</head>
+<body>
+<canvas id="rain" aria-hidden="true"></canvas>
+
+<!-- Original hacker-style logo set (hand-drawn SVG symbols) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="i-hacker" viewBox="0 0 64 64">
+      <path d="M32 6C19 6 11 16 11 28v8c0 3 1 5 3 7l-6 11c-1 2 0 4 2 4h44c2 0 3-2 2-4l-6-11c2-2 3-4 3-7v-8C53 16 45 6 32 6z" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M20 30c0-8 5-14 12-14s12 6 12 14v6c0 6-5 11-12 11s-12-5-12-11z" fill="currentColor" fill-opacity=".14" stroke="currentColor" stroke-width="2"/>
+      <rect x="24" y="30" width="6" height="3.5" rx="1" fill="currentColor"/>
+      <rect x="34" y="30" width="6" height="3.5" rx="1" fill="currentColor"/>
+      <path d="M26 41h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-skull" viewBox="0 0 64 64">
+      <path d="M32 6C18 6 9 15 9 27c0 8 4 13 9 16v8c0 2 1 4 4 4h20c3 0 4-2 4-4v-8c5-3 9-8 9-16C55 15 46 6 32 6z" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
+      <circle cx="22" cy="28" r="6" fill="currentColor"/>
+      <circle cx="42" cy="28" r="6" fill="currentColor"/>
+      <path d="M32 36l-3 6h6z" fill="currentColor"/>
+      <path d="M24 55v-6M32 55v-6M40 55v-6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-terminal" viewBox="0 0 64 64">
+      <rect x="6" y="10" width="52" height="44" rx="5" fill="none" stroke="currentColor" stroke-width="2.5"/>
+      <path d="M6 22h52" stroke="currentColor" stroke-width="2.5"/>
+      <circle cx="13" cy="16" r="1.8" fill="currentColor"/>
+      <circle cx="20" cy="16" r="1.8" fill="currentColor"/>
+      <path d="M16 32l8 7-8 7M30 46h14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-shield" viewBox="0 0 64 64">
+      <path d="M32 5l22 8v16c0 14-9 24-22 30C19 53 10 43 10 29V13z" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
+      <rect x="23" y="29" width="18" height="14" rx="2" fill="currentColor"/>
+      <path d="M26 29v-5a6 6 0 0112 0v5" fill="none" stroke="currentColor" stroke-width="2.5"/>
+      <circle cx="32" cy="35" r="2" style="fill:var(--bg)"/>
+      <path d="M32 36v3" style="stroke:var(--bg)" stroke-width="2" stroke-linecap="round"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="app">
+
+  <noscript><div class="win"><div class="win-body">Please enable JavaScript to use Lockbyte.</div></div></noscript>
+
+  <!-- Top bar (shown after login) -->
+  <header class="topbar" id="topbar" hidden>
+    <div class="brand"><svg aria-hidden="true"><use href="#i-hacker"/></svg>LOCKBYTE</div>
+    <nav class="steps" aria-label="Progress">
+      <button class="step" type="button" data-go="scan">1 Scanner</button>
+      <button class="step" type="button" data-go="quiz">2 Quiz</button>
+      <button class="step" type="button" data-go="feedback">3 Feedback</button>
+    </nav>
+    <button class="btn ghost small" type="button" id="logout">[ Logout ]</button>
+  </header>
+
+  <main>
+
+    <!-- PAGE 1: WELCOME / LOGIN -->
+    <section class="page" id="p-login" aria-labelledby="h-login">
+      <div class="win">
+        <div class="win-bar"><i></i><i></i><i></i><span>root@lockbyte:~/login</span></div>
+        <div class="win-body">
+          <div class="hero">
+            <svg class="hero-logo" aria-hidden="true"><use href="#i-hacker"/></svg>
+            <h1 id="h-login" class="glitch" data-text="LOCKBYTE">LOCKBYTE</h1>
+            <p class="tagline" aria-hidden="true"><span id="typed"></span><span class="caret"></span></p>
+            <p class="sr">Test your password. Learn the tricks. Defend like a pro.</p>
+          </div>
+
+          <form id="login" class="term-form" novalidate>
+            <label for="codename" class="lbl"><span class="ps">root@lockbyte:~$</span> enter your codename</label>
+            <div class="term-input">
+              <span class="ps" aria-hidden="true">&gt;</span>
+              <input id="codename" name="codename" type="text" maxlength="20" autocomplete="off" spellcheck="false" placeholder="e.g. ghost_rider" aria-describedby="login-err">
+            </div>
+            <p id="login-err" class="err" role="alert"></p>
+            <button class="btn primary" type="submit">[ Access System ]</button>
+          </form>
+
+          <div id="boot" class="boot" hidden>
+            <div id="bootlog"></div>
+            <div class="bar"><div id="bootbar"></div></div>
+          </div>
+
+          <ul class="icon-row">
+            <li><svg aria-hidden="true"><use href="#i-hacker"/></svg>Know the enemy</li>
+            <li><svg aria-hidden="true"><use href="#i-skull"/></svg>Spot the threat</li>
+            <li><svg aria-hidden="true"><use href="#i-terminal"/></svg>Test your skills</li>
+            <li><svg aria-hidden="true"><use href="#i-shield"/></svg>Stay protected</li>
+          </ul>
+          <p class="disclaimer">Cyber awareness . No real hacking happens here: everything runs privately in your browser.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- PAGE 2: PASSWORD SCANNER -->
+    <section class="page" id="p-scan" aria-labelledby="h-scan" hidden>
+      <div class="win">
+        <div class="win-bar"><i></i><i></i><i></i><span>root@lockbyte:~/password-scanner</span></div>
+        <div class="win-body">
+          <h2 id="h-scan" class="title">Password Scanner</h2>
+          <p class="sub" id="greet"></p>
+          <p class="note"><b>[ PRIVATE ]</b> Your password is checked inside your browser and is never sent or stored anywhere.</p>
+
+          <label class="lbl" for="pw">Enter a password to scan</label>
+          <div class="term-input">
+            <span class="ps" aria-hidden="true">&gt;</span>
+            <input type="password" id="pw" placeholder="Type or paste a password..." autocomplete="off" spellcheck="false">
+            <button class="btn ghost small" id="toggle" type="button" aria-label="Show or hide password">Show</button>
+          </div>
+
+          <div class="meter" id="meter" role="progressbar" aria-label="Password strength" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="meter-fill" id="fill"></div></div>
+          <div class="meter-info">
+            <span id="verdict">Awaiting input...</span>
+            <span id="score">Score: 0/100</span>
+          </div>
+          <p id="hackline">Type a password to start the scan.</p>
+
+          <div class="stats">
+            <div class="stat"><div class="v" id="len">0</div><div class="k">Length</div></div>
+            <div class="stat"><div class="v" id="entropy">0 bits</div><div class="k">Entropy</div></div>
+            <div class="stat"><div class="v" id="crack">-</div><div class="k">Time to crack*</div></div>
+          </div>
+          <div id="warnings"></div>
+          <p class="fine">*Estimate assumes an offline attack of 10 billion guesses per second. Real-world results vary.</p>
+        </div>
+      </div>
+
+      <div class="win">
+        <div class="win-bar"><i></i><i></i><i></i><span>root@lockbyte:~/requirements</span></div>
+        <div class="win-body">
+          <h3 class="sec">Requirements checklist</h3>
+          <ul class="checks" id="checks">
+            <li data-rule="len8"><span class="dot">&#10003;</span>At least 8 characters</li>
+            <li data-rule="len12"><span class="dot">&#10003;</span>12 or more characters</li>
+            <li data-rule="lower"><span class="dot">&#10003;</span>Lowercase letter (a-z)</li>
+            <li data-rule="upper"><span class="dot">&#10003;</span>Uppercase letter (A-Z)</li>
+            <li data-rule="digit"><span class="dot">&#10003;</span>Number (0-9)</li>
+            <li data-rule="symbol"><span class="dot">&#10003;</span>Symbol (!@#$...)</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="win">
+        <div class="win-bar"><i></i><i></i><i></i><span>root@lockbyte:~/defender-tips</span></div>
+        <div class="win-body">
+          <h3 class="sec">Defender tips</h3>
+          <ul class="tips">
+            <li>Use a <strong>passphrase</strong>: 4 or more random words are long and easy to remember.</li>
+            <li>Never reuse one password across multiple accounts.</li>
+            <li>Turn on <strong>two-factor authentication (2FA)</strong> on social media and email.</li>
+            <li>Never share your OTP or password with anyone, even if they claim to be from a bank or support.</li>
+            <li>Avoid names, birthdays, and phone numbers in your passwords.</li>
+            <li>Use a trusted password manager to store your passwords.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="nav-row">
+        <span></span>
+        <button class="btn primary" type="button" data-go="quiz">Next: Awareness Quiz &rarr;</button>
+      </div>
+    </section>
+
+    <!-- PAGE 3: QUIZ -->
+    <section class="page" id="p-quiz" aria-labelledby="h-quiz" hidden>
+      <div class="win">
+        <div class="win-bar"><i></i><i></i><i></i><span>root@lockbyte:~/awareness-quiz</span></div>
+        <div class="win-body">
+          <h2 id="h-quiz" class="title">Cyber Awareness Quiz</h2>
+          <p class="sub">5 quick questions. Can you outsmart the hackers?</p>
+          <div id="quiz"></div>
+        </div>
+      </div>
+      <div class="nav-row">
+        <button class="btn ghost" type="button" data-go="scan">&larr; Back to Scanner</button>
+        <button class="btn ghost" type="button" id="quiz-next" data-go="feedback">Skip to Feedback &rarr;</button>
+      </div>
+    </section>
+
+    <!-- PAGE 4: FEEDBACK -->
+    <section class="page" id="p-feedback" aria-labelledby="h-feedback" hidden>
+      <form id="fb" novalidate>
+        <div class="win">
+          <div class="win-bar"><i></i><i></i><i></i><span>root@lockbyte:~/feedback</span></div>
+          <div class="win-body">
+            <h2 id="h-feedback" class="title">Mission Debrief</h2>
+            <p class="sub">Tell us how the mission went. It takes 20 seconds.</p>
+
+            <fieldset>
+              <legend>Rate your experience</legend>
+              <div class="stars">
+                <input type="radio" name="rate" id="s5" value="5"><label for="s5"><span class="sr">5 stars</span>&#9733;</label>
+                <input type="radio" name="rate" id="s4" value="4"><label for="s4"><span class="sr">4 stars</span>&#9733;</label>
+                <input type="radio" name="rate" id="s3" value="3"><label for="s3"><span class="sr">3 stars</span>&#9733;</label>
+                <input type="radio" name="rate" id="s2" value="2"><label for="s2"><span class="sr">2 stars</span>&#9733;</label>
+                <input type="radio" name="rate" id="s1" value="1"><label for="s1"><span class="sr">1 star</span>&#9733;</label>
+              </div>
+              <span id="rate-text" aria-live="polite">Tap a star</span>
+            </fieldset>
+
+            <fieldset>
+              <legend>What did you learn? (pick any)</legend>
+              <div class="chips">
+                <label class="chip"><input type="checkbox" name="learn" value="Strong passwords"><span>Strong passwords</span></label>
+                <label class="chip"><input type="checkbox" name="learn" value="OTP fraud"><span>OTP fraud</span></label>
+                <label class="chip"><input type="checkbox" name="learn" value="Phishing links"><span>Phishing links</span></label>
+                <label class="chip"><input type="checkbox" name="learn" value="Two-factor auth"><span>Two-factor auth</span></label>
+                <label class="chip"><input type="checkbox" name="learn" value="Safe habits"><span>Safe habits</span></label>
+              </div>
+            </fieldset>
+
+            <div>
+              <label class="lbl" for="comment">Message for the team (optional)</label>
+              <textarea id="comment" maxlength="300" placeholder="What did you like? What should we improve?"></textarea>
+              <div class="count" id="count">0/300</div>
+            </div>
+            <p class="err" id="fb-err" role="alert"></p>
+          </div>
+        </div>
+        <div class="nav-row">
+          <button class="btn ghost" type="button" data-go="quiz">&larr; Back to Quiz</button>
+          <button class="btn primary" type="submit">[ Send Feedback ]</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- PAGE 5: THANK YOU -->
+    <section class="page" id="p-thanks" aria-labelledby="h-thanks" hidden>
+      <div class="win">
+        <div class="win-bar"><i></i><i></i><i></i><span>root@lockbyte:~/mission_complete.sh</span></div>
+        <div class="win-body thanks">
+          <svg class="seal" viewBox="0 0 120 120" aria-hidden="true">
+            <path d="M60 8l44 16v30c0 28-18 48-44 58C34 102 16 82 16 54V24z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round" pathLength="1"/>
+            <path class="seal-check" d="M38 60l16 16 30-34" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" pathLength="1"/>
+          </svg>
+          <h2 id="h-thanks" class="glitch small" data-text="MISSION COMPLETE">MISSION COMPLETE</h2>
+          <p class="thanks-line">Thank you, <span id="thanks-name"></span>!</p>
+          <p class="sub">Your feedback helps us spread cyber awareness to more students.</p>
+
+          <div class="tiles">
+            <div class="tile"><div class="v" id="sum-score">-</div><div class="k">Quiz score</div></div>
+            <div class="tile"><div class="v" id="sum-rate">-</div><div class="k">Your rating</div></div>
+            <div class="tile"><div class="v" id="sum-rank">-</div><div class="k">Your rank</div></div>
+          </div>
+          <p class="learned" id="learned-row" hidden>You picked up: <span id="sum-learned"></span></p>
+
+          <div class="takeaways">
+            <h3 class="sec">Remember these 3 rules</h3>
+            <ul class="tips">
+              <li>Long passphrases beat short, tricky passwords.</li>
+              <li>Never share your OTP. Not with a bank, not with anyone.</li>
+              <li>Turn on 2FA and think before you click any link.</li>
+            </ul>
+          </div>
+
+          <p class="quote">Stay curious. Stay secure.</p>
+          <p class="sub">Share what you learned with 3 people today.</p>
+          <ul class="icon-row">
+            <li><svg aria-hidden="true"><use href="#i-hacker"/></svg>Think</li>
+            <li><svg aria-hidden="true"><use href="#i-skull"/></svg>Beware</li>
+            <li><svg aria-hidden="true"><use href="#i-terminal"/></svg>Learn</li>
+            <li><svg aria-hidden="true"><use href="#i-shield"/></svg>Protect</li>
+          </ul>
+          <button class="btn primary" type="button" id="restart">[ Start New Session ]</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>&copy; Lockbyte &middot; Cybersecurity Awareness  &middot; Ethical use only</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var reduce = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  var rainBoost = false;
+  var timers = [];
+  var state = { name: "", score: null, total: 0, rating: 0, learned: [], comment: "" };
+
+  function $(id) { return document.getElementById(id); }
+  function later(fn, ms) { var t = setTimeout(fn, reduce ? 0 : ms); timers.push(t); return t; }
+  function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  /* ---------- Matrix rain background ---------- */
+  (function rain() {
+    var c = $("rain");
+    var ctx = c.getContext && c.getContext("2d");
+    if (!ctx || reduce) return;
+    var chars = "01ABCDEF<>{}[]$#%&*+=/|".split("");
+    var fs = 16, cols = 0, drops = [], last = 0;
+    function size() {
+      c.width = window.innerWidth; c.height = window.innerHeight;
+      cols = Math.ceil(c.width / fs); drops = [];
+      for (var i = 0; i < cols; i++) drops[i] = Math.random() * -50;
+    }
+    size();
+    window.addEventListener("resize", size);
+    function frame(t) {
+      requestAnimationFrame(frame);
+      var gap = rainBoost ? 35 : 70;
+      if (document.hidden || t - last < gap) return;
+      last = t;
+      ctx.fillStyle = "rgba(0,10,4,.12)";
+      ctx.fillRect(0, 0, c.width, c.height);
+      ctx.fillStyle = "#00ff41";
+      ctx.font = fs + "px monospace";
+      for (var i = 0; i < cols; i++) {
+        ctx.fillText(chars[Math.floor(Math.random() * chars.length)], i * fs, drops[i] * fs);
+        if (drops[i] * fs > c.height && Math.random() > 0.975) drops[i] = 0;
+        drops[i]++;
+      }
+    }
+    requestAnimationFrame(frame);
+  })();
+
+  /* ---------- Page navigation ---------- */
+  var pages = { login: $("p-login"), scan: $("p-scan"), quiz: $("p-quiz"), feedback: $("p-feedback"), thanks: $("p-thanks") };
+  var order = ["scan", "quiz", "feedback"];
+  var topbar = $("topbar");
+  var stepBtns = document.querySelectorAll(".step");
+
+  function go(name) {
+    Object.keys(pages).forEach(function (k) { pages[k].hidden = (k !== name); });
+    topbar.hidden = (name === "login");
+    Array.prototype.forEach.call(stepBtns, function (b) {
+      var s = b.getAttribute("data-go");
+      if (s === name) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current");
+      b.classList.toggle("done", name === "thanks" || order.indexOf(s) < order.indexOf(name));
+    });
+    window.scrollTo(0, 0);
+    if (name === "login") {
+      $("codename").focus();
+    } else {
+      var h = pages[name].querySelector("h1,h2");
+      if (h) { h.setAttribute("tabindex", "-1"); h.focus({ preventScroll: true }); }
+    }
+    rainBoost = (name === "thanks");
+  }
+
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest ? e.target.closest("[data-go]") : null;
+    if (t && state.name) go(t.getAttribute("data-go"));
+  });
+
+  /* ---------- Page 1: login / welcome ---------- */
+  var TAG = "Test your password. Learn the tricks. Defend like a pro.";
+  var typed = $("typed");
+  if (reduce) { typed.textContent = TAG; }
+  else {
+    var n = 0;
+    (function step() { typed.textContent = TAG.slice(0, ++n); if (n < TAG.length) setTimeout(step, 45); })();
+  }
+
+  $("login").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var v = $("codename").value.trim();
+    var err = $("login-err");
+    if (v.length < 2 || v.length > 20) {
+      err.textContent = "Codename must be 2 to 20 characters.";
+      $("codename").focus();
+      return;
+    }
+    err.textContent = "";
+    state.name = v;
+    startBoot(v);
+  });
+
+  function startBoot(name) {
+    $("login").hidden = true;
+    $("boot").hidden = false;
+    var log = $("bootlog");
+    log.innerHTML = "";
+    var bar = $("bootbar");
+    bar.style.width = "0";
+    var lines = [
+      ["Initializing Lockbyte secure shell ...", ""],
+      ["Loading password scanner ........ [OK]", ""],
+      ["Loading awareness quiz .......... [OK]", ""],
+      ["Verifying codename: " + name + " ... [OK]", ""],
+      ["ACCESS GRANTED", "ok"]
+    ];
+    lines.forEach(function (l, i) {
+      later(function () {
+        log.appendChild(el("div", "bl " + l[1], "> " + l[0]));
+        bar.style.width = ((i + 1) / lines.length * 100) + "%";
+      }, 500 * (i + 1));
+    });
+    later(function () {
+      $("greet").textContent = "$ whoami -> " + name + "  |  session secured. Run a scan below.";
+      go("scan");
+    }, 500 * lines.length + 800);
+  }
+
+  function resetAll() {
+    clearTimers();
+    state = { name: "", score: null, total: 0, rating: 0, learned: [], comment: "" };
+    $("pw").value = ""; renderPw();
+    quizReset();
+    $("fb").reset(); updateRateText(); updateCount();
+    $("fb-err").textContent = "";
+    $("login").hidden = false; $("boot").hidden = true;
+    $("codename").value = ""; $("login-err").textContent = "";
+    go("login");
+  }
+  $("logout").addEventListener("click", resetAll);
+  $("restart").addEventListener("click", resetAll);
+
+  /* ---------- Page 2: password scanner ---------- */
+  var pw = $("pw"), toggle = $("toggle"), fill = $("fill"), meter = $("meter");
+  var verdict = $("verdict"), scoreEl = $("score"), lenEl = $("len"), entropyEl = $("entropy");
+  var crackEl = $("crack"), warnings = $("warnings"), hackline = $("hackline");
+  var checkItems = document.querySelectorAll("#checks li");
+
+  var COMMON = ["password","123456","12345678","123456789","qwerty","abc123","password1","111111",
+    "iloveyou","admin","welcome","letmein","monkey","dragon","football","india123","india",
+    "sunshine","princess","login","passw0rd","1234567890","qwerty123","admin123","123123",
+    "000000","user","test","hello","freedom","whatever","master","shadow","superman"];
+  var SEQUENCES = ["abcdefghijklmnopqrstuvwxyz","qwertyuiopasdfghjklzxcvbnm","01234567890","9876543210"];
+  var LEVELS = [
+    { max: 20,  label: "Very Weak",   color: "var(--red)",    msg: "A hacker would break this almost instantly." },
+    { max: 40,  label: "Weak",        color: "var(--amber)",  msg: "Easy target. A basic tool can crack this." },
+    { max: 60,  label: "Fair",        color: "var(--yellow)", msg: "Better, but a determined attacker could still get in." },
+    { max: 80,  label: "Strong",      color: "var(--lime)",   msg: "Solid. This would take serious effort to crack." },
+    { max: 101, label: "Very Strong", color: "var(--green)",  msg: "Excellent! Hackers would likely give up on this one." }
+  ];
+
+  function poolSize(p) {
+    var size = 0;
+    if (/[a-z]/.test(p)) size += 26;
+    if (/[A-Z]/.test(p)) size += 26;
+    if (/[0-9]/.test(p)) size += 10;
+    if (/[^A-Za-z0-9]/.test(p)) size += 32;
+    return size;
+  }
+  function hasSequence(p) {
+    var lower = p.toLowerCase();
+    for (var s = 0; s < SEQUENCES.length; s++) {
+      for (var i = 0; i <= SEQUENCES[s].length - 4; i++) {
+        if (lower.indexOf(SEQUENCES[s].substr(i, 4)) !== -1) return true;
+      }
+    }
+    return false;
+  }
+  function formatTime(seconds) {
+    if (seconds < 1) return "Instantly";
+    var units = [["year", 31557600], ["month", 2629800], ["day", 86400], ["hour", 3600], ["minute", 60], ["second", 1]];
+    if (seconds >= 31557600 * 1e9) return "Billions of years+";
+    if (seconds >= 31557600 * 1e6) return Math.round(seconds / (31557600 * 1e6)) + " million years";
+    if (seconds >= 31557600 * 1e3) return Math.round(seconds / (31557600 * 1e3)) + " thousand years";
+    for (var i = 0; i < units.length; i++) {
+      var k = seconds / units[i][1];
+      if (k >= 1) { var r = Math.floor(k); return r + " " + units[i][0] + (r > 1 ? "s" : ""); }
+    }
+    return "Instantly";
+  }
+  function analyze(p) {
+    var checks = {
+      len8: p.length >= 8, len12: p.length >= 12,
+      lower: /[a-z]/.test(p), upper: /[A-Z]/.test(p),
+      digit: /[0-9]/.test(p), symbol: /[^A-Za-z0-9]/.test(p)
+    };
+    var issues = [];
+    var lower = p.toLowerCase();
+    var effLen = p.replace(/(.)\1+/g, "$1").length;
+    var entropy = p.length ? effLen * Math.log2(Math.max(poolSize(p), 1)) : 0;
+
+    var isCommon = COMMON.indexOf(lower) !== -1;
+    if (isCommon) { issues.push("This is a very common password. Attackers try it first."); entropy = Math.min(entropy, 10); }
+    else {
+      for (var i = 0; i < COMMON.length; i++) {
+        if (COMMON[i].length >= 5 && lower.indexOf(COMMON[i]) !== -1) {
+          issues.push("Contains a common word or pattern (\"" + COMMON[i] + "\").");
+          entropy *= 0.6; break;
+        }
+      }
+    }
+    if (/(.)\1{2,}/.test(p)) { issues.push("Repeated characters (like \"aaa\") make it easier to guess."); entropy *= 0.8; }
+    if (p.length && hasSequence(p)) { issues.push("Contains an easy sequence (like \"abcd\", \"1234\" or \"qwer\")."); entropy *= 0.8; }
+    if (p.length && /^[a-zA-Z]+$/.test(p) && p.length < 12) { issues.push("Only letters. Add numbers and symbols or make it longer."); }
+    if (p.length && /^[0-9]+$/.test(p)) { issues.push("Only digits. These are cracked very quickly."); entropy *= 0.8; }
+    if (p.length && /^[A-Za-z]+[^A-Za-z0-9]?[0-9]{1,6}[^A-Za-z0-9]?$/.test(p)) {
+      issues.push("A word followed by numbers is one of the most common password patterns.");
+      entropy *= 0.7;
+    }
+    if (/(19|20)[0-9]{2}/.test(p)) {
+      issues.push("Contains a year-like number. Years and birthdays are easy to guess.");
+      entropy *= 0.85;
+    }
+    var score = Math.max(0, Math.min(100, Math.round((entropy / 80) * 100)));
+    if (p.length < 8) score = Math.min(score, 30);
+    if (isCommon) score = Math.min(score, 5);
+    var seconds = p.length ? Math.pow(2, entropy) / 2 / 1e10 : 0;
+    return { checks: checks, issues: issues, entropy: entropy, score: score, seconds: seconds };
+  }
+  function renderPw() {
+    var p = pw.value, r = analyze(p);
+    for (var i = 0; i < checkItems.length; i++) {
+      checkItems[i].classList.toggle("ok", !!r.checks[checkItems[i].getAttribute("data-rule")]);
+    }
+    lenEl.textContent = p.length;
+    if (!p.length) {
+      fill.style.width = "0";
+      meter.setAttribute("aria-valuenow", "0");
+      verdict.textContent = "Awaiting input...";
+      verdict.style.color = "";
+      scoreEl.textContent = "Score: 0/100";
+      entropyEl.textContent = "0 bits";
+      crackEl.textContent = "-";
+      hackline.textContent = "Type a password to start the scan.";
+      warnings.innerHTML = "";
+      return;
+    }
+    var level = LEVELS[LEVELS.length - 1];
+    for (var j = 0; j < LEVELS.length; j++) { if (r.score < LEVELS[j].max) { level = LEVELS[j]; break; } }
+    fill.style.width = Math.max(r.score, 4) + "%";
+    fill.style.background = level.color;
+    fill.style.color = level.color;
+    meter.setAttribute("aria-valuenow", String(r.score));
+    verdict.textContent = level.label;
+    verdict.style.color = level.color;
+    scoreEl.textContent = "Score: " + r.score + "/100";
+    entropyEl.textContent = Math.round(r.entropy) + " bits";
+    crackEl.textContent = formatTime(r.seconds);
+    hackline.textContent = level.msg;
+    warnings.innerHTML = "";
+    r.issues.forEach(function (msg) { warnings.appendChild(el("div", "warn", msg)); });
+  }
+  pw.addEventListener("input", renderPw);
+  toggle.addEventListener("click", function () {
+    var show = pw.type === "password";
+    pw.type = show ? "text" : "password";
+    toggle.textContent = show ? "Hide" : "Show";
+  });
+  renderPw();
+
+  /* ---------- Page 3: quiz ---------- */
+  var Q = [
+    { q: "Which of these passwords is the strongest?",
+      o: ["Rahul@2005", "Qwerty123!", "blue-tiger-river-moon-47", "P@ssw0rd"], a: 2,
+      e: "A long passphrase of random words is much harder to crack than a short password with predictable symbol swaps." },
+    { q: "Someone calls saying they are from your bank and asks for the OTP to stop a fraud. What should you do?",
+      o: ["Share it quickly so your money stays safe", "Hang up and call your bank on its official number", "Ask them to prove who they are, then share it"], a: 1,
+      e: "Banks never ask for your OTP. Anyone asking for it is a scammer, so hang up and never share it." },
+    { q: "You use the same password for Instagram, email and Wi-Fi. Is that safe?",
+      o: ["Yes, if the password is strong", "No, one leak exposes all your accounts", "Yes, if you change it once a year"], a: 1,
+      e: "When one site is hacked, attackers try the same password everywhere. Use a different password for every account." },
+    { q: "What is the best extra protection for your social media account?",
+      o: ["Two-factor authentication (2FA)", "Hiding your profile photo", "Logging out every night"], a: 0,
+      e: "2FA asks for a second proof (like a code), so a stolen password alone is not enough to get in." },
+    { q: "You get a message: Your account will be blocked! Click here to verify your password. What do you do?",
+      o: ["Click quickly before it is blocked", "Do not click, ignore it and report it as phishing", "Reply with your password to be safe"], a: 1,
+      e: "This is phishing. Scammers use fear and urgency to make you act fast. Never enter your password through a link in a message." }
+  ];
+  var box = $("quiz"), quizNext = $("quiz-next");
+  var qi = 0, qscore = 0, answered = false;
+
+  function rank(s, t) {
+    if (t && s === t) return "ELITE DEFENDER";
+    if (s >= 3) return "SECURITY AGENT";
+    return "ROOKIE";
+  }
+  function quizReset() {
+    qi = 0; qscore = 0; state.score = null; state.total = 0;
+    quizNext.textContent = "Skip to Feedback →";
+    quizNext.className = "btn ghost";
+    quizShow();
+  }
+  function quizShow() {
+    box.innerHTML = "";
+    answered = false;
+    if (qi >= Q.length) { quizResult(); return; }
+    var q = Q[qi];
+    box.appendChild(el("div", "quiz-progress", "QUESTION " + (qi + 1) + " OF " + Q.length));
+    box.appendChild(el("div", "quiz-q", q.q));
+    var btns = [];
+    q.o.forEach(function (text, idx) {
+      var b = el("button", "quiz-opt", text);
+      b.type = "button";
+      b.addEventListener("click", function () { quizPick(idx, btns, q); });
+      btns.push(b);
+      box.appendChild(b);
+    });
+  }
+  function quizPick(idx, btns, q) {
+    if (answered) return;
+    answered = true;
+    if (idx === q.a) qscore++;
+    btns.forEach(function (b, k) {
+      b.disabled = true;
+      if (k === q.a) b.classList.add("correct");
+      else if (k === idx) b.classList.add("wrong");
+    });
+    box.appendChild(el("div", "quiz-fb", (idx === q.a ? "Correct! " : "Not quite. ") + q.e));
+    var next = el("button", "btn primary quiz-btn", qi === Q.length - 1 ? "See my score" : "Next question");
+    next.type = "button";
+    next.addEventListener("click", function () { qi++; quizShow(); });
+    box.appendChild(next);
+  }
+  function quizResult() {
+    state.score = qscore; state.total = Q.length;
+    quizNext.textContent = "Next: Feedback →";
+    quizNext.className = "btn primary";
+    var msg = qscore === Q.length
+      ? "Cyber-safe champion! Share these tips with your family and friends."
+      : qscore >= 3
+        ? "Good job! Review the defender tips to close the gaps."
+        : "Keep learning! Read the defender tips and try again.";
+    var wrap = el("div", "quiz-result");
+    wrap.appendChild(el("div", "big", qscore + " / " + Q.length));
+    wrap.appendChild(el("div", "rank", "RANK: " + rank(qscore, Q.length)));
+    wrap.appendChild(el("p", "", msg));
+    var again = el("button", "btn quiz-btn", "Try again");
+    again.type = "button";
+    again.addEventListener("click", quizReset);
+    wrap.appendChild(again);
+    box.appendChild(wrap);
+  }
+  quizShow();
+
+  /* ---------- Page 4: feedback ---------- */
+  var fb = $("fb"), cm = $("comment");
+  var RATE_TXT = { 1: "Needs work", 2: "Could be better", 3: "Good", 4: "Great!", 5: "Awesome!" };
+  function currentRating() {
+    var c = fb.querySelector('input[name="rate"]:checked');
+    return c ? parseInt(c.value, 10) : 0;
+  }
+  function updateRateText() {
+    var r = currentRating();
+    $("rate-text").textContent = r ? (r + "/5 - " + RATE_TXT[r]) : "Tap a star";
+  }
+  function updateCount() { $("count").textContent = cm.value.length + "/300"; }
+  fb.addEventListener("change", function (e) { if (e.target && e.target.name === "rate") updateRateText(); });
+  cm.addEventListener("input", updateCount);
+  fb.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var r = currentRating();
+    var err = $("fb-err");
+    if (!r) {
+      err.textContent = "Please choose a star rating before sending.";
+      $("s5").focus();
+      return;
+    }
+    err.textContent = "";
+    state.rating = r;
+    state.learned = Array.prototype.map.call(fb.querySelectorAll('input[name="learn"]:checked'), function (i) { return i.value; });
+    state.comment = cm.value.trim();
+    buildThanks();
+    go("thanks");
+  });
+
+  /* ---------- Page 5: thank you ---------- */
+  function buildThanks() {
+    $("thanks-name").textContent = state.name;
+    $("sum-score").textContent = state.score === null ? "-" : state.score + " / " + state.total;
+    $("sum-rate").textContent = "★".repeat(state.rating) + "☆".repeat(5 - state.rating);
+    $("sum-rank").textContent = state.score === null ? "EXPLORER" : rank(state.score, state.total);
+    $("learned-row").hidden = !state.learned.length;
+    $("sum-learned").textContent = state.learned.join(" · ");
+  }
+})();
+</script>
+</body>
+</html>
